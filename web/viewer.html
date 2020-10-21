@@ -191,6 +191,20 @@ See https://github.com/adobe-type-tools/cmap-resources
         
         .pointDiv {
             font-size: 8px;
+            position: absolute;
+            border: 1px solid #aaa;
+        }
+        
+        .pointDot {
+            content: "";
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: rgb(255, 255, 0);
+            border: 1px solid #aaa;
+            right: -3px;
+            bottom: -3px;
+            pointer-events: auto;
         }
     </style>
 
@@ -652,9 +666,19 @@ See https://github.com/adobe-type-tools/cmap-resources
         //目前編輯的資料
         var currentData = {}
 
+        // 改變框的位置與大小
+        var currentPoint = {
+            moving: {
+                target: null
+            },
+            resizing: {
+                target: null
+            }
+        }
+
         //測試定位資料
         var excelToJson = [{
-            "id": "001",
+            "id": "P001",
             "printtype": "20201010",
             "x1": 407,
             "y1": 818,
@@ -741,12 +765,16 @@ See https://github.com/adobe-type-tools/cmap-resources
             var overlayDiv = document.createElement('div');
             overlayDiv.classList.add("pointDiv")
             overlayDiv.id = id
-            overlayDiv.setAttribute('style', 'background-color: rgba(255,255,0,0.5);position:absolute;' +
+            overlayDiv.setAttribute('style', 'background-color: rgba(255,255,0,0.5);' +
                 'left:' + x + 'px;top:' + y + 'px;width:' + width + 'px;height:' + height + 'px;');
             pageView.div.appendChild(overlayDiv);
             if (data) {
                 overlayDiv.innerText = data.desc || ""
             }
+
+            var pointDot = document.createElement('div')
+            pointDot.classList.add('pointDot')
+            overlayDiv.appendChild(pointDot)
 
             //純文字
             // var overlayDiv = document.createElement('span');
@@ -877,8 +905,9 @@ See https://github.com/adobe-type-tools/cmap-resources
 
             //pdfContent.onmousedown = function(e) {
             pdfContent.addEventListener('mousedown', function(e) {
-                console.log('mouseCoordinate onmousedown', e)
-                if (typeof e === 'object' && e.button === 0) {
+                //console.log('mouseCoordinate onmousedown', e)
+                //滑鼠左鍵＋不加Ctrl
+                if (typeof e === 'object' && e.button === 0 && !e.ctrlKey) {
                     scrollPoint = [0, 0, 0, 0]
                     scrollPoint[0] = e.pageX
                     scrollPoint[1] = e.pageY
@@ -905,8 +934,8 @@ See https://github.com/adobe-type-tools/cmap-resources
 
             //pdfContent.onmouseup = function(e) {
             pdfContent.addEventListener('mouseup', function(e) {
-
-                if (typeof e === 'object' && e.button === 0) {
+                //滑鼠左鍵＋不加Ctrl
+                if (typeof e === 'object' && e.button === 0 && !e.ctrlKey) {
                     scrollPoint[2] = e.layerX
                     scrollPoint[3] = e.layerY
                     pdfContent.removeChild(tempDiv)
@@ -954,11 +983,11 @@ See https://github.com/adobe-type-tools/cmap-resources
                             x2: point2[0],
                             y2: point2[1],
                         })
-                        draw(tempDiv.id, [point1[0], point1[1], point2[0], point2[1]])
+                        if (point1[0] != point2[0] && point1[1] != point2[1]) {
+                            draw(tempDiv.id, [point1[0], point1[1], point2[0], point2[1]])
+                        }
+
                     }
-
-
-
 
                 }
             })
@@ -968,7 +997,7 @@ See https://github.com/adobe-type-tools/cmap-resources
                 var e = e || event;
 
                 e.preventDefault()
-                e.stopPropagation()
+                    //e.stopPropagation()
                     //console.log('mousemove', e)
 
 
@@ -1007,11 +1036,11 @@ See https://github.com/adobe-type-tools/cmap-resources
             }
 
             pdfContent.addEventListener('mousedown', function(e) {
-                console.log('mousedown test', e)
+                //console.log('mousedown test', e)
                 if (typeof e === 'object' && e.button === 2) {
                     if (Array.from(e.target.classList).some(x => x == "pointDiv")) {
                         document.querySelector('.edit').style.display = "block"
-                        console.log('mousedown button==2', e)
+                            //console.log('mousedown button==2', e)
                         var data = dataPoint.find(x => x.id == e.target.id)
                         if (data) {
                             document.querySelector('.edit .editContent input#id').value = data.id || 'h' + Math.random().toString(36).substring(2)
@@ -1044,7 +1073,7 @@ See https://github.com/adobe-type-tools/cmap-resources
                     data.type = document.querySelector('.edit .editContent select#type').value || ""
 
 
-                    console.log('edit dom', data.id)
+                    //console.log('edit dom', data.id)
                     refreshScreen(data)
                         // var currentDom = document.querySelector('#' + data.id)
                         // var screenRect = pageView.viewport.convertToViewportRectangle([data.x1, data.y1, data.x2, data.y2])
@@ -1080,7 +1109,7 @@ See https://github.com/adobe-type-tools/cmap-resources
             })
 
             document.addEventListener('keyup', function(e) {
-                console.log(e.keyCode)
+                //console.log(e.keyCode)
                 if (e.keyCode == 27) {
                     if (currentData.id) {
                         document.querySelector('#' + currentData.id).style.backgroundColor = 'rgba(255, 255, 0, 0.5)'
@@ -1112,16 +1141,32 @@ See https://github.com/adobe-type-tools/cmap-resources
                 }
             }
 
+            var divToPdfPoints = function(div) {
+                var data = dataPoint.find(x => x.id == div.id)
+                var left = parseInt(div.style.left.replace('px'))
+                var top = parseInt(div.style.top.replace('px'))
+                var width = parseInt(div.style.width.replace('px'))
+                var height = parseInt(div.style.height.replace('px'))
+
+                var pdfPoint1 = pageView.viewport.convertToPdfPoint(left, top)
+                var x1 = pdfPoint1[0]
+                var y1 = pdfPoint1[1]
+
+                var pdfPoint2 = pageView.viewport.convertToPdfPoint(left + width, top + height)
+                var x2 = pdfPoint2[0]
+                var y2 = pdfPoint2[1]
+
+                return [x1, y1, x2, y2]
+            }
+
             document.querySelector('#dataPoint .editClose').addEventListener('click', function(e) {
                 document.querySelector('#dataPoint').style.display = "none"
                 updateDataPoints()
             })
 
-
             document.querySelector('#dataPoint #resetPoint').addEventListener('click', function() {
                 updateDataPoints()
             })
-
 
             document.querySelector('#dataPoint #downloadPoint').addEventListener('click', function() {
                 window.setTimeout(function() {
@@ -1131,10 +1176,118 @@ See https://github.com/adobe-type-tools/cmap-resources
                 }, 2000)
             })
 
+            //改變框大小
+            pdfContent.addEventListener('mouseover', function(e) {
+                //console.log('pointDiv 123', e)
+                if (e.target.classList && Array.from(e.target.classList).filter(x => x == 'pointDiv').length > 0) {
+                    currentPoint.moving.target = e.target
+                }
 
+                if (e.target.classList && Array.from(e.target.classList).filter(x => x == 'pointDot').length > 0) {
+                    currentPoint.resizing.target = e.target
+                }
+            })
 
+            pdfContent.addEventListener('mousedown', function(e) {
+                if (e.target != currentPoint.moving.target) return
+                e.stopPropagation()
 
+                //滑鼠左鍵＋Ctrl
+                if (typeof e === 'object' && e.button === 0 && e.ctrlKey) {
+                    currentPoint.moving.x = e.pageX
+                    currentPoint.moving.y = e.pageY
+                    currentPoint.moving.left = parseFloat(e.target.style.left.replace("px", "")) || 0
+                    currentPoint.moving.top = parseFloat(e.target.style.top.replace("px", "")) || 0
+                    currentPoint.moving.dropType = true
+                    console.log('moveeing mousedown', e.target, currentPoint, e)
+                }
 
+            })
+
+            pdfContent.addEventListener('mousemove', function(e) {
+                e.stopPropagation()
+
+                //滑鼠左鍵＋Ctrl
+                if (typeof e === 'object' && e.button === 0) {
+                    if (currentPoint.moving.dropType) {
+                        console.log('moveeing mousemove', currentPoint.moving.target, currentPoint, e)
+                        currentPoint.moving.target.style.left = currentPoint.moving.left - (currentPoint.moving.x - e.pageX) + "px"
+                        currentPoint.moving.target.style.top = currentPoint.moving.top - (currentPoint.moving.y - e.pageY) + "px"
+                    }
+                }
+
+            })
+
+            pdfContent.addEventListener('mouseup', function(e) {
+                e.stopPropagation()
+
+                //滑鼠左鍵＋Ctrl
+                if (currentPoint.moving.dropType && typeof e === 'object' && e.button === 0) {
+
+                    var pdfPoints = divToPdfPoints(currentPoint.moving.target)
+                    var data = dataPoint.find(x => x.id == currentPoint.moving.target.id)
+                    data.x1 = pdfPoints[0]
+                    data.y1 = pdfPoints[1]
+                    data.x2 = pdfPoints[2]
+                    data.y2 = pdfPoints[3]
+
+                    //狀態初始化
+                    currentPoint.moving.dropType = false
+                }
+
+            })
+
+            //resizing
+            pdfContent.addEventListener('mousedown', function(e) {
+                if (e.target != currentPoint.resizing.target) return
+                e.stopPropagation()
+
+                //滑鼠左鍵＋Ctrl
+                if (typeof e === 'object' && e.button === 0 && e.ctrlKey) {
+                    currentPoint.resizing.parent = currentPoint.resizing.target.parentNode
+                    currentPoint.resizing.x = e.pageX
+                    currentPoint.resizing.y = e.pageY
+                    currentPoint.resizing.left = parseFloat(currentPoint.resizing.parent.style.left.replace("px", "")) || 0
+                    currentPoint.resizing.top = parseFloat(currentPoint.resizing.parent.style.top.replace("px", "")) || 0
+                    currentPoint.resizing.width = parseFloat(currentPoint.resizing.parent.style.width.replace("px", "")) || 0
+                    currentPoint.resizing.height = parseFloat(currentPoint.resizing.parent.style.height.replace("px", "")) || 0
+                    currentPoint.resizing.dropType = true
+                }
+
+            })
+
+            pdfContent.addEventListener('mousemove', function(e) {
+                e.stopPropagation()
+
+                //滑鼠左鍵＋Ctrl
+                if (typeof e === 'object' && e.button === 0) {
+                    if (currentPoint.resizing.dropType) {
+                        currentPoint.resizing.parent.style.width = currentPoint.resizing.width - (currentPoint.resizing.x - e.pageX) + "px"
+                        currentPoint.resizing.parent.style.height = currentPoint.resizing.height - (currentPoint.resizing.y - e.pageY) + "px"
+                    }
+                }
+            })
+
+            pdfContent.addEventListener('mouseup', function(e) {
+                e.stopPropagation()
+
+                //滑鼠左鍵＋Ctrl
+                if (currentPoint.resizing.dropType && typeof e === 'object' && e.button === 0) {
+
+                    //更新節點資料
+                    var pdfPoints = divToPdfPoints(currentPoint.resizing.parent)
+                    var data = dataPoint.find(x => x.id == currentPoint.resizing.parent.id)
+                    data.x1 = pdfPoints[0]
+                    data.y1 = pdfPoints[1]
+                    data.x2 = pdfPoints[2]
+                    data.y2 = pdfPoints[3]
+
+                    //狀態初始化
+                    currentPoint.resizing.dropType = false
+                    currentPoint.resizing.target = null
+                    currentPoint.resizing.parent = null
+                }
+            })
 
         }
 
